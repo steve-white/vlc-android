@@ -33,6 +33,7 @@ import org.videolan.medialibrary.media.MediaLibraryItem
 import org.videolan.tools.CoroutineContextProvider
 import org.videolan.tools.livedata.LiveDataset
 import org.videolan.vlc.util.FilterDelegate
+import org.videolan.vlc.util.FilterMode
 
 private const val TAG = "VLC/BaseModel"
 
@@ -49,7 +50,7 @@ abstract class BaseModel<T : MediaLibraryItem>(context: Context, val coroutineCo
         viewModelScope.actor<Update>(capacity = Channel.UNLIMITED) {
             for (update in channel) if (isActive) when (update) {
                 Refresh -> updateList()
-                is Filter -> filter.filter(update.query)
+                is Filter -> filter.filter(update.query, update.mode)
                 is MediaUpdate -> updateItems(update.mediaList as List<T>)
                 is MediaAddition -> addMedia(update.media as T)
                 is MediaListAddition -> addMedia(update.mediaList as List<T>)
@@ -72,7 +73,29 @@ abstract class BaseModel<T : MediaLibraryItem>(context: Context, val coroutineCo
     override fun filter(query: String?) {
         if (!updateActor.isClosedForSend) {
             filterQuery = query
-            updateActor.trySend(Filter(query))
+            updateActor.trySend(Filter(query, FilterMode.CONTAINS))
+        }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    open fun filterExpression(query: String?) {
+        if (!updateActor.isClosedForSend) {
+            filterQuery = query
+            updateActor.trySend(Filter(query, FilterMode.WILDCARD))
+        }
+    }
+
+    /**
+     * Re-applies the current filter expression against fresh data after a provider refresh.
+     * Resets the FilterDelegate's cached source so it picks up the newly loaded dataset
+     * rather than the now-stale pre-refresh snapshot.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun reapplyFilterExpression() {
+        val query = filterQuery ?: return
+        if (!updateActor.isClosedForSend) {
+            filter.sourceSet = null
+            updateActor.trySend(Filter(query, FilterMode.WILDCARD))
         }
     }
 
@@ -115,4 +138,4 @@ class MediaUpdate(val mediaList: List<MediaLibraryItem>) : Update()
 class MediaListAddition(val mediaList: List<MediaLibraryItem>) : Update()
 class MediaAddition(val media: MediaLibraryItem) : Update()
 class Remove(val media: MediaLibraryItem) : Update()
-class Filter(val query: String?) : Update()
+class Filter(val query: String?, val mode: FilterMode) : Update()
