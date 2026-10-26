@@ -930,6 +930,11 @@
     <string name="device_default">Device default</string>
     <string name="track_number">%d tracks</string>
     <string name="jump_to">Jump to</string>
+    <string name="search_by_expression">Search by expression</string>
+    <string name="search_expression_title">Search by expression</string>
+    <string name="search_expression_breadcrumb">Search: %s</string>
+    <string name="search_expression_hint">Pattern, for example *.mp4 or foo*bar</string>
+    <string name="search_expression_description">Use * to match any number of characters and ? to match a single character. Text without wildcards matches anywhere in the file or folder name. Leave blank to clear the current expression filter.</string>
     <string name="show_video_thumbnails_summary">Show video thumbnails in lists</string>
     <string name="show_video_thumbnails">Video thumbnails</string>
     <string name="eq_snap_bands">Snap bands</string>

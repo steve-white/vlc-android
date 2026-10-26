@@ -99,8 +99,23 @@
                 android:elevation="6dp"
             android:contentDescription="@string/sortby"
             app:srcCompat="@drawable/ic_tv_browser_sort"
-                app:layout_constraintEnd_toStartOf="@+id/headerButton"
+                                app:layout_constraintEnd_toStartOf="@+id/expressionButton"
                 app:layout_constraintTop_toTopOf="parent" />
+
+        <androidx.appcompat.widget.AppCompatImageButton
+                                android:id="@+id/expressionButton"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="@dimen/tv_overscan_vertical"
+                                android:layout_marginEnd="8dp"
+                                android:background="@color/transparent"
+                                android:elevation="6dp"
+                                android:visibility="gone"
+                        android:contentDescription="@string/search_by_expression"
+                        app:srcCompat="@drawable/ic_tv_browser_search"
+                                app:layout_constraintEnd_toStartOf="@+id/headerButton"
+                                app:layout_constraintTop_toTopOf="parent"
+                                tools:visibility="visible" />
 
     <androidx.appcompat.widget.AppCompatImageButton
                 android:id="@+id/headerButton"
@@ -123,7 +138,7 @@
                 android:layout_marginStart="@dimen/tv_overscan_horizontal"
                 android:layout_marginEnd="@dimen/tv_overscan_horizontal"
                 android:visibility="visible"
-                app:constraint_referenced_ids="sortButton,title,headerButton" />
+                app:constraint_referenced_ids="sortButton,title,expressionButton,headerButton" />
 
         <org.videolan.television.ui.FocusableRecyclerView
                 android:id="@+id/list"
@@ -173,6 +188,23 @@
                 app:layout_constraintStart_toStartOf="@+id/imageButtonSettings"
                 app:layout_constraintTop_toTopOf="@+id/imageButtonSettings" />
 
+        <androidx.appcompat.widget.AppCompatImageButton
+                                android:id="@+id/imageButtonExpression"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="8dp"
+                                android:layout_marginBottom="8dp"
+                                android:contentDescription="@string/search_by_expression"
+                                android:elevation="6dp"
+                                android:nextFocusDown="@id/imageButtonHeader"
+                                android:visibility="gone"
+                        app:srcCompat="@drawable/ic_fabtvmini_search"
+                                app:layout_constraintBottom_toBottomOf="@+id/imageButtonSort"
+                                app:layout_constraintEnd_toEndOf="@+id/imageButtonSort"
+                                app:layout_constraintStart_toStartOf="@+id/imageButtonSort"
+                                app:layout_constraintTop_toTopOf="@+id/imageButtonSort"
+                                tools:visibility="visible" />
+
     <androidx.appcompat.widget.AppCompatImageButton
                 android:id="@+id/imageButtonFavorite"
                 android:layout_width="wrap_content"
@@ -195,9 +227,9 @@
                 android:layout_marginBottom="8dp"
             android:contentDescription="@string/jump_to"
                 android:elevation="6dp"
-                android:nextFocusUp="@id/imageButtonSort"
+                                android:nextFocusUp="@id/imageButtonExpression"
                 android:nextFocusDown="@id/imageButtonSettings"
-                android:nextFocusForward="@id/imageButtonSort"
+                                android:nextFocusForward="@id/imageButtonExpression"
             app:srcCompat="@drawable/ic_fabtvmini_jumptoheader"
                 app:layout_constraintBottom_toBottomOf="@+id/imageButtonSettings"
                 app:layout_constraintEnd_toEndOf="@+id/imageButtonSettings"
@@ -252,6 +284,25 @@
                 app:layout_constraintEnd_toEndOf="@+id/sortButton"
                 app:layout_constraintStart_toStartOf="@+id/sortButton"
                 app:layout_constraintTop_toBottomOf="@+id/sortButton" />
+
+        <TextView
+                android:id="@+id/expressionDescription"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp"
+                android:alpha="0"
+                android:background="@drawable/rounded_corners"
+                android:paddingStart="8dp"
+                android:paddingTop="4dp"
+                android:paddingEnd="8dp"
+                android:paddingBottom="4dp"
+                android:text="@string/search_by_expression"
+                android:visibility="gone"
+                app:layout_constraintEnd_toEndOf="@+id/expressionButton"
+                app:layout_constraintStart_toStartOf="@+id/expressionButton"
+                app:layout_constraintTop_toBottomOf="@+id/expressionButton"
+                tools:visibility="visible" />
 
         <TextView
                 android:id="@+id/displayDescription"

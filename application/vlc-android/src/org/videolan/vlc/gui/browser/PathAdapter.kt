@@ -15,7 +15,11 @@ import org.videolan.vlc.R
 import org.videolan.vlc.viewmodels.browser.IPathOperationDelegate
 import org.videolan.vlc.viewmodels.browser.PathOperationDelegate
 
-class PathAdapter(val browser: PathAdapterListener, val media: MediaWrapper) : RecyclerView.Adapter<PathAdapter.ViewHolder>() {
+class PathAdapter(
+    val browser: PathAdapterListener,
+    val media: MediaWrapper,
+    private val trailingSegmentLabel: String? = null,
+) : RecyclerView.Adapter<PathAdapter.ViewHolder>() {
 
     private val pathOperationDelegate = browser.getPathOperationDelegate()
 
@@ -34,20 +38,25 @@ class PathAdapter(val browser: PathAdapterListener, val media: MediaWrapper) : R
         return ViewHolder(LayoutInflater.from(parent.context).inflate(R.layout.browser_path_item, parent, false) as TextView)
     }
 
-    override fun getItemCount() = segments.size
+    override fun getItemCount() = segments.size + if (trailingSegmentLabel == null) 0 else 1
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val text: String? = when {
+            position == segments.size && trailingSegmentLabel != null -> trailingSegmentLabel
             //substitute a storage path to its name. See [replaceStoragePath]
             PathOperationDelegate.storages.containsKey(segments[position].toUri().path) -> pathOperationDelegate.retrieveSafePath(PathOperationDelegate.storages.valueAt(PathOperationDelegate.storages.indexOfKey(segments[position].toUri().path)))
             else -> segments[position].toUri().lastPathSegment
         }
         holder.root.text = text
         text?.let {
-            val isFile = try {
-                segments[position].toUri().toFile().isFile
-            } catch (e: Exception) {
+            val isFile = if (position >= segments.size) {
                 false
+            } else {
+                try {
+                    segments[position].toUri().toFile().isFile
+                } catch (e: Exception) {
+                    false
+                }
             }
             holder.root.contentDescription =  holder.root.context.getString(if (isFile) R.string.talkback_file else R.string.talkback_folder, holder.root.text)
         }
@@ -57,7 +66,7 @@ class PathAdapter(val browser: PathAdapterListener, val media: MediaWrapper) : R
         init {
             root.setOnClickListener {
                 absoluteAdapterPosition.let {
-                    if (it == segments.size - 1) return@setOnClickListener
+                    if (it >= itemCount - 1) return@setOnClickListener
                     browser.backTo(
                             when (it) {
                                 0 -> "root"
