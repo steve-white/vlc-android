@@ -1,11 +1,13 @@
 # VLC for Android
 
 This is a *fork* of the the official **Android** port of [VLC](https://videolan.org/vlc/).
-The fork adds a "Search by expression" option in the UI when browsing media and a button to all the user dictate the search query.
+The fork adds a "Search by expression" option in the UI when browsing media and a button to all the user dictate the search query as the original search simply didn't work that well.
 
 Notes:
-- Periodically re-synced and re-built to a latest apk for convenience (see Releases)
+- Periodically re-synced with the official repo and re-built to a latest apk for convenience (see Releases)
 - Tested on Firestick 4k
+
+![Search by expression](./search-by-expression.png)
 
 # Documentation
 
