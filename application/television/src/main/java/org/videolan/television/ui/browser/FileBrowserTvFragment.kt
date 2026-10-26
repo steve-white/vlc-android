@@ -257,14 +257,21 @@ class FileBrowserTvFragment : BaseBrowserTvFragment<MediaLibraryItem>(), PathAda
     private fun updateSearchExpressionUi() {
         val query = (viewModel as BrowserModel).filterQuery?.takeIf { it.isNotBlank() }
         val isExpressionFilterActive = query != null
-        val tintColor = ContextCompat.getColor(requireContext(), if (isExpressionFilterActive) R.color.orange500 else R.color.white)
+        val orange = ContextCompat.getColor(requireContext(), R.color.orange500)
+        val white = ContextCompat.getColor(requireContext(), R.color.white)
+        // Inactive: keep the icon's own state-based tint (orange when focused, like the sibling buttons).
+        // Active: stay orange, but flip to white on focus so focus remains visible on the highlighted pill.
+        val tint = if (isExpressionFilterActive) ColorStateList(
+            arrayOf(intArrayOf(android.R.attr.state_focused), intArrayOf(android.R.attr.state_pressed), intArrayOf()),
+            intArrayOf(white, white, orange)
+        ) else null
         val label = query?.let { getString(R.string.search_expression_breadcrumb, it) }
             ?: getString(R.string.search_by_expression)
 
         listOf(binding.expressionButton, binding.imageButtonExpression).forEach { button ->
             button.isActivated = isExpressionFilterActive
             button.contentDescription = label
-            ImageViewCompat.setImageTintList(button, ColorStateList.valueOf(tintColor))
+            ImageViewCompat.setImageTintList(button, tint)
             button.setBackgroundResource(if (isExpressionFilterActive) R.drawable.rounded_corners else android.R.color.transparent)
         }
         // Keep the tooltip static — the breadcrumb already shows the active query, so repeating
