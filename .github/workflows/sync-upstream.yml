@@ -12,6 +12,15 @@ name: Sync upstream and build
 #   SYNC_TOKEN  (recommended) PAT with `repo` + `workflow` scopes. Pushing a
 #               rebased branch that contains .github/workflows changes is
 #               refused for the default GITHUB_TOKEN.
+#
+# Build type: debug | release | signedRelease. Manual runs pick it in the
+# dispatch form; scheduled runs use the repository variable BUILD_TYPE
+# (Settings -> Secrets and variables -> Actions -> Variables), defaulting to
+# signedRelease. `release` is unsigned and can't be installed, so prefer
+# signedRelease, which needs these secrets:
+#   KEYSTORE_BASE64    base64 of the keystore file (`base64 -w0 my.keystore`)
+#   KEYSTORE_PASSWORD  store and key password (the app uses one for both)
+#   KEYSTORE_ALIAS     optional, key alias, defaults to `vlc`
 
 on:
   schedule:
@@ -22,6 +31,15 @@ on:
         description: Build even if there is nothing new upstream
         type: boolean
         default: false
+      build_type:
+        description: Build type (default = repository variable BUILD_TYPE, else signedRelease)
+        type: choice
+        options:
+          - default
+          - debug
+          - release
+          - signedRelease
+        default: default
 
 concurrency:
   group: sync-upstream
@@ -34,6 +52,7 @@ env:
   UPSTREAM_URL: https://github.com/videolan/vlc-android.git
   UPSTREAM_BRANCH: master
   CUSTOM_BRANCH: wildcard-search
+  BUILD_TYPE: ${{ inputs.build_type != 'default' && inputs.build_type || vars.BUILD_TYPE || 'signedRelease' }}
 
 jobs:
   sync-and-build:
@@ -45,6 +64,25 @@ jobs:
           ref: ${{ env.CUSTOM_BRANCH }}
           fetch-depth: 0
           token: ${{ secrets.SYNC_TOKEN || github.token }}
+
+      # Fail before touching any branch if the build can't work
+      - name: Check build config
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          case "$BUILD_TYPE" in
+            debug|release) ;;
+            signedRelease)
+              if [ -z "$KEYSTORE_BASE64" ] || [ -z "$KEYSTORE_PASSWORD" ]; then
+                echo "::error::signedRelease needs the KEYSTORE_BASE64 and KEYSTORE_PASSWORD secrets (or set the BUILD_TYPE variable to debug/release)"
+                exit 1
+              fi ;;
+            *)
+              echo "::error::Unknown BUILD_TYPE '$BUILD_TYPE' (use debug, release or signedRelease)"
+              exit 1 ;;
+          esac
+          echo "Building: $BUILD_TYPE"
 
       - name: Configure git
         run: |
@@ -106,22 +144,58 @@ jobs:
 
       # App-only build, same as upstream's `continuous-app-build` job: libvlc
       # and the medialibrary come from published artifacts, so no native build.
-      - name: Build debug APK
+      - name: Build ${{ env.BUILD_TYPE }} APK
         if: steps.rebase.outputs.needed == 'true'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEYSTORE_ALIAS: ${{ secrets.KEYSTORE_ALIAS || 'vlc' }}
         run: |
           export ANDROID_SDK="$ANDROID_HOME"
           export ANDROID_NDK="$ANDROID_NDK_LATEST_HOME"
           ./buildsystem/compile.sh --init
-          ./gradlew assembleDebug
+          GRADLE_ARGS=()
+          if [ "$BUILD_TYPE" = signedRelease ]; then
+            KEYSTORE_PATH="$RUNNER_TEMP/release.keystore"
+            echo "$KEYSTORE_BASE64" | base64 -d > "$KEYSTORE_PATH"
+            GRADLE_ARGS=(-PkeyStoreFile="$KEYSTORE_PATH" -Pstorealias="$KEYSTORE_ALIAS")
+          fi
+          # build.gradle reads the key password from PASSWORD_KEYSTORE
+          PASSWORD_KEYSTORE="$KEYSTORE_PASSWORD" ./gradlew "assemble${BUILD_TYPE^}" "${GRADLE_ARGS[@]}"
 
       - uses: actions/upload-artifact@v4
         if: steps.rebase.outputs.needed == 'true'
         with:
-          name: vlc-android-debug-apk
+          name: vlc-android-${{ env.BUILD_TYPE }}-apk
           path: application/app/build/outputs/apk/**/*.apk
           retention-days: 180
 
-      # Only reached when the rebase and the build both succeeded
+      # Actions artifacts expire (90 days max on public repos), so keep the
+      # long-term builds as GitHub Releases. The tag is pushed with git (the
+      # rebased commit isn't on the remote yet), then the release is created
+      # on that existing tag.
+      - name: Publish release
+        if: steps.rebase.outputs.needed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # Without this gh resolves the repo from the `upstream` remote
+          GH_REPO: ${{ github.repository }}
+        run: |
+          SHA=$(git rev-parse HEAD)
+          TAG="build-$(date -u +%Y%m%d-%H%M)-${SHA:0:8}"
+          mapfile -t APKS < <(find application/app/build/outputs/apk -name '*.apk')
+          [ "${#APKS[@]}" -gt 0 ] || { echo "::error::No APK found"; exit 1; }
+          git tag "$TAG" "$SHA"
+          git push origin "refs/tags/$TAG"
+          gh release create "$TAG" "${APKS[@]}" \
+            --verify-tag \
+            --prerelease \
+            --title "$CUSTOM_BRANCH $BUILD_TYPE build $(date -u +%Y-%m-%d)" \
+            --notes "Rebased onto upstream/$UPSTREAM_BRANCH at $(git rev-parse --short "upstream/$UPSTREAM_BRANCH"). Source: $SHA"
+
+      # The branch only moves once the build and the release succeeded, so a
+      # failed run can simply be re-run. Pruning comes after it on purpose: a
+      # prune failure turns the run red but can't hold the branch back.
       - name: Publish rebased branch
         if: steps.rebase.outputs.needed == 'true'
         env:
@@ -137,24 +211,16 @@ jobs:
             echo "- after: \`$NEW_SHA\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      # Actions artifacts expire (90 days max on public repos), so keep the
-      # long-term builds as GitHub Releases and prune all but the newest
-      # KEEP_BUILDS. Only releases tagged build-* are ever touched.
-      - name: Publish release and prune old ones
+      # Keep only the newest KEEP_BUILDS. Only releases tagged build-* are
+      # ever touched.
+      - name: Prune old releases
         if: steps.rebase.outputs.needed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           KEEP_BUILDS: 3
         run: |
-          SHA=$(git rev-parse HEAD)
-          TAG="build-$(date -u +%Y%m%d-%H%M)-${SHA:0:8}"
-          mapfile -t APKS < <(find application/app/build/outputs/apk -name '*.apk')
-          [ "${#APKS[@]}" -gt 0 ] || { echo "::error::No APK found"; exit 1; }
-          gh release create "$TAG" "${APKS[@]}" \
-            --target "$SHA" \
-            --prerelease \
-            --title "$CUSTOM_BRANCH build $(date -u +%Y-%m-%d)" \
-            --notes "Rebased onto upstream/$UPSTREAM_BRANCH at $(git rev-parse --short "upstream/$UPSTREAM_BRANCH"). Source: $SHA"
+          set -o pipefail
           gh release list --limit 100 --json tagName,createdAt \
             | jq -r --argjson keep "$KEEP_BUILDS" \
                 '[.[] | select(.tagName | startswith("build-"))] | sort_by(.createdAt) | reverse | .[$keep:] | .[].tagName' \
