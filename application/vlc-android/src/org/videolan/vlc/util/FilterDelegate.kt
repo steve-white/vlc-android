@@ -8,6 +8,12 @@ import org.videolan.resources.AppContextProvider
 import org.videolan.tools.livedata.LiveDataset
 import org.videolan.vlc.media.MediaUtils
 import java.util.Locale
+import kotlin.text.RegexOption.IGNORE_CASE
+
+enum class FilterMode {
+    CONTAINS,
+    WILDCARD
+}
 
 open class FilterDelegate<T : MediaLibraryItem>(val dataset: LiveDataset<T>) {
     var sourceSet: List<T>? = null
@@ -17,13 +23,20 @@ open class FilterDelegate<T : MediaLibraryItem>(val dataset: LiveDataset<T>) {
         return sourceSet
     }
 
-    suspend fun filter(charSequence: CharSequence?) = publish(filteringJob(charSequence))
+    suspend fun filter(charSequence: CharSequence?, mode: FilterMode = FilterMode.CONTAINS) = publish(filteringJob(charSequence, mode))
 
-    protected open suspend fun filteringJob(charSequence: CharSequence?) : MutableList<T>? {
-        if (charSequence !== null) initSource()?.let {
+    protected open suspend fun filteringJob(charSequence: CharSequence?, mode: FilterMode) : MutableList<T>? {
+        val query = charSequence?.trim()?.toString()?.takeIf { it.isNotEmpty() } ?: return null
+        if (mode == FilterMode.WILDCARD) initSource()?.let { source ->
+            val matcher = query.toWildcardRegex()
+            return withContext(Dispatchers.Default) {
+                source.filterTo(mutableListOf()) { item -> matcher.matches(item.title) }
+            }
+        }
+        initSource()?.let {
             return withContext(Dispatchers.Default) {
                 mutableListOf<T>().apply {
-                    val queryStrings = charSequence.trim().toString().split(" ")
+                    val queryStrings = query.split(" ")
                     for (item in it) for (query in queryStrings)
                         if (item.title.contains(query, true)) {
                             this.add(item)
@@ -49,10 +62,12 @@ open class FilterDelegate<T : MediaLibraryItem>(val dataset: LiveDataset<T>) {
 
 class PlaylistFilterDelegate(dataset: LiveDataset<MediaWrapper>) : FilterDelegate<MediaWrapper>(dataset) {
 
-    override suspend fun filteringJob(charSequence: CharSequence?): MutableList<MediaWrapper>? {
-        if (charSequence !== null) initSource()?.let { list ->
+    override suspend fun filteringJob(charSequence: CharSequence?, mode: FilterMode): MutableList<MediaWrapper>? {
+        val query = charSequence?.trim()?.toString()?.takeIf { it.isNotEmpty() } ?: return null
+        if (mode == FilterMode.WILDCARD) return super.filteringJob(query, mode)
+        initSource()?.let { list ->
             return withContext(Dispatchers.Default) { mutableListOf<MediaWrapper>().apply {
-                val queryStrings = charSequence.trim().toString().split(" ").asSequence().filter { it.isNotEmpty() }.map { it.lowercase(Locale.getDefault()) }.toList()
+                val queryStrings = query.split(" ").asSequence().filter { it.isNotEmpty() }.map { it.lowercase(Locale.getDefault()) }.toList()
                 for (media in list) {
                     val title = MediaUtils.getMediaTitle(media).lowercase(Locale.getDefault())
                     val location = media.location.lowercase(Locale.getDefault())
@@ -77,4 +92,24 @@ class PlaylistFilterDelegate(dataset: LiveDataset<MediaWrapper>) : FilterDelegat
         }
         return null
     }
+}
+
+private fun String.toWildcardRegex(): Regex {
+    val hasWildcard = any { it == '*' || it == '?' }
+    val pattern = buildString(length * 2 + 2) {
+        if (hasWildcard) append('^') else append(".*")
+        for (character in this@toWildcardRegex) {
+            when (character) {
+                '*' -> append(".*")
+                '?' -> append('.')
+                '\\', '.', '^', '$', '|', '(', ')', '[', ']', '{', '}', '+' -> {
+                    append('\\')
+                    append(character)
+                }
+                else -> append(character)
+            }
+        }
+        if (hasWildcard) append('$') else append(".*")
+    }
+    return Regex(pattern, IGNORE_CASE)
 }

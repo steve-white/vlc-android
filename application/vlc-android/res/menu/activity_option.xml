@@ -85,6 +85,12 @@
             vlc:showAsAction="never"
             android:visible="false"/>
     <item
+            android:id="@+id/ml_menu_search_expression"
+            android:orderInCategory="3"
+            android:title="@string/search_by_expression"
+            android:visible="false"
+            vlc:showAsAction="never" />
+    <item
             android:orderInCategory="3"
             android:id="@+id/ml_menu_display_grid"
             android:title="@string/display_in_grid"
