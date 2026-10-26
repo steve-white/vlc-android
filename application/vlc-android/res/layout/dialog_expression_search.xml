@@ -38,6 +38,9 @@
             android:layout_marginStart="8dp"
             android:layout_marginTop="16dp"
             android:layout_marginEnd="8dp"
+            app:endIconContentDescription="@string/search_expression_dictate"
+            app:endIconDrawable="@drawable/ic_mic"
+            app:endIconMode="custom"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@+id/expression_description">
@@ -52,6 +55,19 @@
                 android:maxLines="1"
                 tools:text="*.mp4" />
     </com.google.android.material.textfield.TextInputLayout>
+
+    <CheckBox
+            android:id="@+id/expression_wildcard_checkbox"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="8dp"
+            android:checked="true"
+            android:text="@string/search_expression_wildcard"
+            app:layout_constraintBottom_toBottomOf="@+id/expression_search_button"
+            app:layout_constraintEnd_toStartOf="@+id/expression_search_button"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="@+id/expression_search_button" />
 
     <Button
             android:id="@+id/expression_search_button"
