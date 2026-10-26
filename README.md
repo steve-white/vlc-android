@@ -1,21 +1,33 @@
 # VLC for Android
 
-This is the official **Android** port of [VLC](https://videolan.org/vlc/).
+This is a *fork* of the the official **Android** port of [VLC](https://videolan.org/vlc/).
+The fork adds a "Search by expression" option in the UI when browsing media and a button to all the user dictate the search query.
+
+Notes:
+- Periodically re-synced and re-built to a latest apk for convenience (see Releases)
+- Tested on Firestick 4k
+
+# Documentation
 
 VLC on Android plays all the same files as the classical version of VLC, and features a media database
 for Audio and Video files and stream.
 
-- [Project Structure](#project-structure)
-- [LibVLC](#libvlc)
-- [License](#license)
-- [Build](#build)
-  - [Build Application](#build-application)
-  - [Build LibVLC](#build-libvlc)
-- [Contribute](#contribute)
-  - [Pull requests](#pull-requests)
-  - [Translations](#translations)
-- [Issues and feature requests](#issues-and-feature-requests)
-- [Support](#support)
+- [VLC for Android](#vlc-for-android)
+- [Documentation](#documentation)
+  - [Project Structure](#project-structure)
+  - [LibVLC](#libvlc)
+  - [License](#license)
+  - [Build](#build)
+    - [Build Application](#build-application)
+    - [Build LibVLC](#build-libvlc)
+      - [Setup](#setup)
+      - [Build](#build-1)
+      - [Medialibrary](#medialibrary)
+  - [Contribute](#contribute)
+    - [Pull requests](#pull-requests)
+    - [Translations](#translations)
+  - [Issues and feature requests](#issues-and-feature-requests)
+  - [Support](#support)
 
 ## Project Structure
 
