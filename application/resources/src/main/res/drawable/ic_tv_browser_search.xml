@@ -1,0 +1,50 @@
+<!--
+  ~ *************************************************************************
+  ~  ic_tv_browser_search.xml
+  ~ **************************************************************************
+  ~ Copyright © 2024 VLC authors and VideoLAN
+  ~ This program is free software; you can redistribute it and/or modify
+  ~ it under the terms of the GNU General Public License as published by
+  ~ the Free Software Foundation; either version 2 of the License, or
+  ~ (at your option) any later version.
+  ~
+  ~ This program is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~ GNU General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU General Public License
+  ~ along with this program; if not, write to the Free Software
+  ~ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA 02110-1301, USA.
+  ~ ***************************************************************************
+  ~
+  ~
+  -->
+
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+        android:width="36dp"
+        android:height="36dp"
+        android:viewportWidth="48"
+        android:viewportHeight="48">
+    <!--
+        The search icon path is designed for a 24×24 viewport.
+        A group transform (scale=1.5, translate=6) fits it into this 48×48 viewport
+        and centres the magnifier circle at (24, 24).
+    -->
+    <group
+            android:scaleX="1.5"
+            android:scaleY="1.5"
+            android:translateX="6"
+            android:translateY="6">
+        <path
+                android:pathData="m9.9999,2.9999c-3.8542,0 -7,3.1459 -7,7 0,3.8542 3.1458,7 7,7 1.748,0 3.345,-0.652 4.5742,-1.7188l0.4258,0.4258v0.7071l4.2832,4.2832a1,1 0,0 0,0.01 0.01,1 1,0 0,0 0.707,0.293 1,1 0,0 0,1 -1,1 1,0 0,0 -0.293,-0.707l-4.2929,-4.293h-0.7071l-0.4258,-0.4258c1.0666,-1.2295 1.7186,-2.8265 1.7186,-4.5745 0,-3.8541 -3.1458,-7 -7,-7zM9.9999,4.9999c2.7735,0 5,2.2265 5,5 0,2.7735 -2.2265,5.002 -5,5.002 -2.7735,0 -5,-2.2285 -5,-5.002 0,-2.7735 2.2265,-5 5,-5z"
+                android:strokeAlpha="1"
+                android:strokeLineJoin="round"
+                android:strokeWidth="2"
+                android:fillColor="@color/tv_menu_selection"
+                android:strokeColor="#00000000"
+                android:fillType="nonZero"
+                android:fillAlpha="1"
+                android:strokeLineCap="round" />
+    </group>
+</vector>

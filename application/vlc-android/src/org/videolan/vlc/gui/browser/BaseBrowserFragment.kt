@@ -96,12 +96,15 @@ import org.videolan.vlc.databinding.DirectoryBrowserBinding
 import org.videolan.vlc.gui.AudioPlayerContainerActivity
 import org.videolan.vlc.gui.MainActivity
 import org.videolan.vlc.gui.dialogs.CONFIRM_RENAME_DIALOG_RESULT
+import org.videolan.vlc.gui.dialogs.CONFIRM_EXPRESSION_SEARCH_DIALOG_RESULT
 import org.videolan.vlc.gui.dialogs.CURRENT_SORT
 import org.videolan.vlc.gui.dialogs.ConfirmDeleteDialog
 import org.videolan.vlc.gui.dialogs.CtxActionReceiver
 import org.videolan.vlc.gui.dialogs.DEFAULT_ACTIONS
 import org.videolan.vlc.gui.dialogs.DISPLAY_IN_CARDS
 import org.videolan.vlc.gui.dialogs.DisplaySettingsDialog
+import org.videolan.vlc.gui.dialogs.ExpressionSearchDialog
+import org.videolan.vlc.gui.dialogs.EXPRESSION_SEARCH_QUERY
 import org.videolan.vlc.gui.dialogs.RENAME_DIALOG_MEDIA
 import org.videolan.vlc.gui.dialogs.RENAME_DIALOG_NEW_NAME
 import org.videolan.vlc.gui.dialogs.RenameDialog
@@ -244,6 +247,7 @@ abstract class BaseBrowserFragment : MediaBrowserFragment<BrowserModel>(), IRefr
         super.onPrepareOptionsMenu(menu)
         menu.findItem(R.id.ml_menu_display_options)?.isVisible = true
         menu.findItem(R.id.ml_menu_filter)?.isVisible = enableSearchOption()
+        menu.findItem(R.id.ml_menu_search_expression)?.isVisible = adapter.mediaCount > 0
         menu.findItem(R.id.ml_menu_sortby)?.isVisible = false
         menu.findItem(R.id.ml_menu_sortby_media_number)?.isVisible = false
         menu.findItem(R.id.ml_menu_add_playlist)?.isVisible = !isRootDirectory
@@ -325,6 +329,11 @@ abstract class BaseBrowserFragment : MediaBrowserFragment<BrowserModel>(), IRefr
                 }
                 viewModel.refresh()
             }
+        }
+        requireActivity().supportFragmentManager.setFragmentResultListener(CONFIRM_EXPRESSION_SEARCH_DIALOG_RESULT, viewLifecycleOwner) { _, bundle ->
+            val expression = bundle.getString(EXPRESSION_SEARCH_QUERY)
+            if (expression.isNullOrBlank()) viewModel.restore()
+            else viewModel.filterExpression(expression)
         }
         lifecycleScope.launch {
             PlaylistManager.shuffling.collect {
@@ -689,6 +698,12 @@ abstract class BaseBrowserFragment : MediaBrowserFragment<BrowserModel>(), IRefr
                     defaultActionType = getString(R.string.files)
                 )
                     .show(requireActivity().supportFragmentManager, "DisplaySettingsDialog")
+                true
+            }
+
+            R.id.ml_menu_search_expression -> {
+                ExpressionSearchDialog.newInstance(viewModel.filterQuery)
+                    .show(requireActivity().supportFragmentManager, ExpressionSearchDialog::class.simpleName)
                 true
             }
 

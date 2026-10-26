@@ -77,6 +77,9 @@ abstract class BaseBrowserTvFragment<T> : Fragment(), BrowserFragmentInterface, 
     abstract fun getColumnNumber(): Int
     abstract fun provideAdapter(eventsHandler: IEventsHandler<T>, itemSize: Int): TvItemAdapter
     abstract fun getDisplayPrefId(): String
+    protected open fun canSearchByExpression() = false
+    protected open fun onSearchExpressionSelected(): Boolean = false
+    protected open fun isSearchByExpressionActive() = false
 
     private var recyclerSectionItemGridDecoration: RecyclerSectionItemGridDecoration? = null
     lateinit var binding: SongBrowserBinding
@@ -144,6 +147,12 @@ abstract class BaseBrowserTvFragment<T> : Fragment(), BrowserFragmentInterface, 
 
         binding.sortButton.setOnClickListener(sortClick)
         binding.imageButtonSort.setOnClickListener(sortClick)
+
+        val expressionClick: (View) -> Unit = {
+            onSearchExpressionSelected()
+        }
+        binding.expressionButton.setOnClickListener(expressionClick)
+        binding.imageButtonExpression.setOnClickListener(expressionClick)
 
         binding.displayButton.setOnClickListener(displayClick)
         binding.imageButtonDisplay.setOnClickListener(displayClick)
@@ -331,6 +340,11 @@ abstract class BaseBrowserTvFragment<T> : Fragment(), BrowserFragmentInterface, 
         menu.menu.findItem(R.id.ml_menu_sortby_date).isVisible = (viewModel as SortableModel).canSortByReleaseDate()
         menu.menu.findItem(R.id.ml_menu_sortby_last_modified).isVisible = (viewModel as SortableModel).canSortByLastModified()
         menu.menu.findItem(R.id.ml_menu_sortby_number).isVisible = false
+        menu.menu.findItem(R.id.ml_menu_search_expression).apply {
+            isVisible = canSearchByExpression()
+            isCheckable = true
+            isChecked = isSearchByExpressionActive()
+        }
         menu.setOnMenuItemClickListener(this)
         menu.show()
     }
@@ -369,6 +383,9 @@ abstract class BaseBrowserTvFragment<T> : Fragment(), BrowserFragmentInterface, 
             R.id.ml_menu_sortby_number -> {
                 sortBy(Medialibrary.SORT_FILESIZE)
                 return super.onOptionsItemSelected(item)
+            }
+            R.id.ml_menu_search_expression -> {
+                return onSearchExpressionSelected()
             }
             else -> return super.onOptionsItemSelected(item)
         }

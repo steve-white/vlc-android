@@ -2,14 +2,21 @@ package org.videolan.television.ui.browser
 
 import android.content.Context
 import android.content.Intent
+import android.content.res.ColorStateList
 import android.graphics.Rect
 import android.os.Bundle
 import android.os.Parcelable
 import android.view.KeyEvent
+import android.view.LayoutInflater
 import android.view.View
+import android.view.ViewGroup
+import android.widget.TextView
+import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.core.os.bundleOf
+import androidx.core.widget.ImageViewCompat
 import androidx.fragment.app.FragmentManager
+import androidx.fragment.app.setFragmentResultListener
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -33,6 +40,9 @@ import org.videolan.television.ui.TvItemAdapter
 import org.videolan.television.ui.TvUtil
 import org.videolan.tools.isStarted
 import org.videolan.vlc.gui.DialogActivity
+import org.videolan.vlc.gui.dialogs.CONFIRM_EXPRESSION_SEARCH_DIALOG_RESULT
+import org.videolan.vlc.gui.dialogs.EXPRESSION_SEARCH_QUERY
+import org.videolan.vlc.gui.dialogs.ExpressionSearchDialog
 import org.videolan.vlc.gui.browser.PathAdapter
 import org.videolan.vlc.gui.browser.PathAdapterListener
 import org.videolan.vlc.gui.view.EmptyLoadingState
@@ -128,8 +138,21 @@ class FileBrowserTvFragment : BaseBrowserTvFragment<MediaLibraryItem>(), PathAda
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        requireActivity().supportFragmentManager.setFragmentResultListener(CONFIRM_EXPRESSION_SEARCH_DIALOG_RESULT, viewLifecycleOwner) { _, bundle ->
+            val expression = bundle.getString(EXPRESSION_SEARCH_QUERY)
+            val browserModel = viewModel as BrowserModel
+            if (expression.isNullOrBlank()) browserModel.restore()
+            else browserModel.filterExpression(expression)
+            updateSearchExpressionUi()
+            (viewModel.currentItem as? MediaWrapper).setBreadcrumb()
+        }
+
         (viewModel as BrowserModel).dataset.observe(viewLifecycleOwner) { items ->
             if (items == null) return@observe
+            // If an expression filter is active and a refresh is still loading, the data here
+            // is momentarily unfiltered. Skip the update — reapplyFilterExpression() will
+            // push the correctly filtered dataset once loading completes.
+            if (isSearchByExpressionActive() && (viewModel.provider as BrowserProvider).loading.value == true) return@observe
             val lm = binding.list.layoutManager as LinearLayoutManager
             val selectedItem = lm.focusedChild
             submitList(items)
@@ -158,9 +181,16 @@ class FileBrowserTvFragment : BaseBrowserTvFragment<MediaLibraryItem>(), PathAda
             animationDelegate.setVisibility(binding.headerDescription, if (viewModel.provider.headers.isEmpty) View.GONE else View.VISIBLE)
         }
 
-        (viewModel.provider as BrowserProvider).loading.observe(viewLifecycleOwner) {
-            if (it) binding.emptyLoading.state = EmptyLoadingState.LOADING
-            if (!it && (viewModel as BrowserModel).dataset.isEmpty()) binding.emptyLoading.state = EmptyLoadingState.EMPTY
+        var previousLoadingState: Boolean? = null
+        (viewModel.provider as BrowserProvider).loading.observe(viewLifecycleOwner) { isLoading ->
+            if (isLoading) binding.emptyLoading.state = EmptyLoadingState.LOADING
+            if (!isLoading && (viewModel as BrowserModel).dataset.isEmpty()) binding.emptyLoading.state = EmptyLoadingState.EMPTY
+            // Re-apply the active expression filter after a refresh completes so that
+            // returning from a child folder does not clear the search results.
+            if (previousLoadingState == true && !isLoading) {
+                (viewModel as BrowserModel).reapplyFilterExpression()
+            }
+            previousLoadingState = isLoading
         }
 
         (viewModel as BrowserModel).getDescriptionUpdate().observe(viewLifecycleOwner) { pair ->
@@ -170,33 +200,77 @@ class FileBrowserTvFragment : BaseBrowserTvFragment<MediaLibraryItem>(), PathAda
 
     override fun onStart() {
         super.onStart()
+        updateSearchExpressionUi()
         (viewModel.currentItem as? MediaWrapper).setBreadcrumb()
     }
 
     private fun MediaWrapper?.setBreadcrumb() {
-        if (this == null) return
-        if (isSchemeSupported(uri?.scheme)) {
-            binding.ariane.visibility = View.VISIBLE
-            binding.ariane.layoutManager = LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false)
-            binding.ariane.adapter = PathAdapter(this@FileBrowserTvFragment, this)
-            if (binding.ariane.itemDecorationCount == 0) {
-                val did = object : VLCDividerItemDecoration(requireActivity(), HORIZONTAL, VectorDrawableCompat.create(requireActivity().resources, R.drawable.ic_divider, requireActivity().theme)!!) {
-                    override fun getItemOffsets(outRect: Rect, view: View, parent: RecyclerView, state: RecyclerView.State) {
-                        val position = parent.getChildAdapterPosition(view)
-                        // hide the divider for the last child
-                        if (position == parent.adapter?.itemCount ?: 0 - 1) {
-                            outRect.setEmpty()
-                        } else {
-                            super.getItemOffsets(outRect, view, parent, state)
-                        }
+        val searchBreadcrumbLabel = getSearchBreadcrumbLabel()
+        when {
+            this != null && isSchemeSupported(uri?.scheme) -> showBreadcrumb(PathAdapter(this@FileBrowserTvFragment, this, searchBreadcrumbLabel))
+            searchBreadcrumbLabel != null -> showBreadcrumb(SimpleBreadcrumbAdapter(listOf(getString(org.videolan.vlc.R.string.browser), searchBreadcrumbLabel)))
+            else -> binding.ariane.visibility = View.GONE
+        }
+        updateTopNavigationLabel()
+        animationDelegate.setVisibility(binding.title, if (binding.ariane.visibility == View.GONE) View.VISIBLE else View.GONE)
+    }
+
+    private fun showBreadcrumb(adapter: RecyclerView.Adapter<*>) {
+        binding.ariane.visibility = View.VISIBLE
+        val breadcrumbLayoutManager = LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false)
+        binding.ariane.layoutManager = breadcrumbLayoutManager
+        binding.ariane.adapter = adapter
+        if (binding.ariane.itemDecorationCount == 0) {
+            val divider = object : VLCDividerItemDecoration(requireActivity(), HORIZONTAL, VectorDrawableCompat.create(requireActivity().resources, R.drawable.ic_divider, requireActivity().theme)!!) {
+                override fun getItemOffsets(outRect: Rect, view: View, parent: RecyclerView, state: RecyclerView.State) {
+                    val position = parent.getChildAdapterPosition(view)
+                    if (position == (parent.adapter?.itemCount ?: 0) - 1) {
+                        outRect.setEmpty()
+                    } else {
+                        super.getItemOffsets(outRect, view, parent, state)
                     }
                 }
-                did.setDrawable(VectorDrawableCompat.create(requireActivity().resources, R.drawable.ic_divider, requireActivity().theme)!!)
-                binding.ariane.addItemDecoration(did)
             }
-            binding.ariane.scrollToPosition(binding.ariane.adapter!!.itemCount - 1)
-        } else binding.ariane.visibility = View.GONE
-        animationDelegate.setVisibility(binding.title, if (binding.ariane.visibility == View.GONE) View.VISIBLE else View.GONE)
+            divider.setDrawable(VectorDrawableCompat.create(requireActivity().resources, R.drawable.ic_divider, requireActivity().theme)!!)
+            binding.ariane.addItemDecoration(divider)
+        }
+        binding.ariane.post {
+            breadcrumbLayoutManager.scrollToPositionWithOffset((binding.ariane.adapter?.itemCount ?: 1) - 1, 0)
+        }
+    }
+
+    private fun getDefaultToolbarTitle() = viewModel.currentItem?.let {
+        when (it) {
+            is MediaLibraryItem -> if (getCategory() == TYPE_NETWORK || getCategory() == TYPE_FILE) "" else it.title
+            else -> ""
+        }
+    } ?: getTitle()
+
+    private fun updateTopNavigationLabel() {
+        binding.title.text = getSearchBreadcrumbLabel() ?: getDefaultToolbarTitle()
+    }
+
+    private fun getSearchBreadcrumbLabel() = (viewModel as BrowserModel).filterQuery
+        ?.takeIf { it.isNotBlank() }
+        ?.let { getString(R.string.search_expression_breadcrumb, it) }
+
+    private fun updateSearchExpressionUi() {
+        val query = (viewModel as BrowserModel).filterQuery?.takeIf { it.isNotBlank() }
+        val isExpressionFilterActive = query != null
+        val tintColor = ContextCompat.getColor(requireContext(), if (isExpressionFilterActive) R.color.orange500 else R.color.white)
+        val label = query?.let { getString(R.string.search_expression_breadcrumb, it) }
+            ?: getString(R.string.search_by_expression)
+
+        listOf(binding.expressionButton, binding.imageButtonExpression).forEach { button ->
+            button.isActivated = isExpressionFilterActive
+            button.contentDescription = label
+            ImageViewCompat.setImageTintList(button, ColorStateList.valueOf(tintColor))
+            button.setBackgroundResource(if (isExpressionFilterActive) R.drawable.rounded_corners else android.R.color.transparent)
+        }
+        // Keep the tooltip static — the breadcrumb already shows the active query, so repeating
+        // it here would create a large overlay over the breadcrumb when the button gains focus.
+        binding.expressionDescription.text = getString(R.string.search_by_expression)
+        updateTopNavigationLabel()
     }
 
     override fun backTo(tag: String) {
@@ -235,11 +309,15 @@ class FileBrowserTvFragment : BaseBrowserTvFragment<MediaLibraryItem>(), PathAda
             animationDelegate.setVisibility(binding.favoriteButton, View.VISIBLE)
             animationDelegate.setVisibility(binding.imageButtonFavorite, View.VISIBLE)
             animationDelegate.setVisibility(binding.favoriteDescription, View.VISIBLE)
+            animationDelegate.setVisibility(binding.expressionButton, View.VISIBLE)
+            animationDelegate.setVisibility(binding.imageButtonExpression, View.VISIBLE)
+            animationDelegate.setVisibility(binding.expressionDescription, View.VISIBLE)
             favExists = (currentItem as? MediaWrapper)?.let { browserFavRepository.browserFavExists(it.uri) } == true
             binding.favoriteButton.setImageResource(if (favExists) R.drawable.ic_tv_browser_favorite else R.drawable.ic_tv_browser_favorite_outline)
             binding.favoriteButton.contentDescription = getString(if (favExists) R.string.favorites_remove else R.string.favorites_add)
             binding.imageButtonFavorite.setImageResource(if (favExists) R.drawable.ic_fabtvmini_favorite else R.drawable.ic_fabtvmini_favorite_outline)
             binding.imageButtonFavorite.contentDescription = getString(if (favExists) R.string.favorites_remove else R.string.favorites_add)
+            updateSearchExpressionUi()
         }
         binding.favoriteButton.setOnClickListener(favoriteClickListener)
         binding.imageButtonFavorite.setOnClickListener(favoriteClickListener)
@@ -272,6 +350,16 @@ class FileBrowserTvFragment : BaseBrowserTvFragment<MediaLibraryItem>(), PathAda
     }
 
     override fun getCategory() = (viewModel as BrowserModel).type
+
+    override fun canSearchByExpression() = (binding.list.adapter?.itemCount ?: 0) > 0
+
+    override fun isSearchByExpressionActive() = !(viewModel as BrowserModel).filterQuery.isNullOrBlank()
+
+    override fun onSearchExpressionSelected(): Boolean {
+        ExpressionSearchDialog.newInstance((viewModel as BrowserModel).filterQuery)
+            .show(requireActivity().supportFragmentManager, ExpressionSearchDialog::class.simpleName)
+        return true
+    }
 
     override fun onClick(v: View, position: Int, item: MediaLibraryItem) {
         val mediaWrapper = item as MediaWrapper
@@ -330,6 +418,21 @@ class FileBrowserTvFragment : BaseBrowserTvFragment<MediaLibraryItem>(), PathAda
                 FileBrowserTvFragment().apply {
                     arguments = bundleOf(CATEGORY to type, ITEM to item, "rootLevel" to root)
                 }
+    }
+
+    private class SimpleBreadcrumbAdapter(private val items: List<String>) : RecyclerView.Adapter<SimpleBreadcrumbAdapter.ViewHolder>() {
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
+            val view = LayoutInflater.from(parent.context).inflate(org.videolan.vlc.R.layout.browser_path_item, parent, false) as TextView
+            return ViewHolder(view)
+        }
+
+        override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+            holder.root.text = items[position]
+        }
+
+        override fun getItemCount() = items.size
+
+        class ViewHolder(val root: TextView) : RecyclerView.ViewHolder(root)
     }
 
     override fun fireDialog(dialog: Dialog) {
