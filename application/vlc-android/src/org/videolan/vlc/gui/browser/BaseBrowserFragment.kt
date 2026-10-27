@@ -37,6 +37,7 @@ import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.core.os.bundleOf
+import androidx.activity.addCallback
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.Lifecycle
@@ -330,10 +331,16 @@ abstract class BaseBrowserFragment : MediaBrowserFragment<BrowserModel>(), IRefr
                 viewModel.refresh()
             }
         }
+        // While an expression filter is shown, back clears it instead of leaving the folder
+        val clearExpressionCallback = requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner, enabled = false) {
+            viewModel.restore()
+            isEnabled = false
+        }
         requireActivity().supportFragmentManager.setFragmentResultListener(CONFIRM_EXPRESSION_SEARCH_DIALOG_RESULT, viewLifecycleOwner) { _, bundle ->
             val expression = bundle.getString(EXPRESSION_SEARCH_QUERY)
             if (expression.isNullOrBlank()) viewModel.restore()
             else viewModel.filterExpression(expression)
+            clearExpressionCallback.isEnabled = !expression.isNullOrBlank()
         }
         lifecycleScope.launch {
             PlaylistManager.shuffling.collect {
