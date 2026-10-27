@@ -247,7 +247,8 @@ class FileBrowserTvFragment : BaseBrowserTvFragment<MediaLibraryItem>(), PathAda
     } ?: getTitle()
 
     private fun updateTopNavigationLabel() {
-        binding.title.text = getSearchBreadcrumbLabel() ?: getDefaultToolbarTitle()
+        // The breadcrumb already shows the active search expression, don't repeat it in the title
+        binding.title.text = getDefaultToolbarTitle()
     }
 
     private fun getSearchBreadcrumbLabel() = (viewModel as BrowserModel).filterQuery
@@ -271,9 +272,10 @@ class FileBrowserTvFragment : BaseBrowserTvFragment<MediaLibraryItem>(), PathAda
         listOf(binding.expressionButton, binding.imageButtonExpression).forEach { button ->
             button.isActivated = isExpressionFilterActive
             button.contentDescription = label
-            ImageViewCompat.setImageTintList(button, tint)
-            button.setBackgroundResource(if (isExpressionFilterActive) R.drawable.rounded_corners else android.R.color.transparent)
         }
+        // Only the header icon is a bare glyph; the FAB drawable includes its own orange disc, tinting it hides the glyph
+        ImageViewCompat.setImageTintList(binding.expressionButton, tint)
+        updateExpressionButtonBackgrounds(isExpressionFilterActive)
         // Keep the tooltip static — the breadcrumb already shows the active query, so repeating
         // it here would create a large overlay over the breadcrumb when the button gains focus.
         binding.expressionDescription.text = getString(R.string.search_by_expression)
@@ -361,6 +363,12 @@ class FileBrowserTvFragment : BaseBrowserTvFragment<MediaLibraryItem>(), PathAda
     override fun canSearchByExpression() = (binding.list.adapter?.itemCount ?: 0) > 0
 
     override fun isSearchByExpressionActive() = !(viewModel as BrowserModel).filterQuery.isNullOrBlank()
+
+    override fun clearSearchByExpression() {
+        (viewModel as BrowserModel).restore()
+        updateSearchExpressionUi()
+        (viewModel.currentItem as? MediaWrapper).setBreadcrumb()
+    }
 
     override fun onSearchExpressionSelected(): Boolean {
         ExpressionSearchDialog.newInstance((viewModel as BrowserModel).filterQuery)

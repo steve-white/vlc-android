@@ -59,12 +59,16 @@ internal class MediaBrowserAnimatorDelegate(val binding: SongBrowserBinding, pri
     private val fabExpression = binding.imageButtonExpression
     private val fabDisplay = binding.imageButtonDisplay
 
+    private val descriptionViews = listOf(binding.displayDescription, binding.sortDescription, binding.expressionDescription, binding.headerDescription, binding.favoriteDescription)
+
     private var currenstate = MediaBrowserState.SCROLLED_UP
         set(value) {
             //avoid playing the transition again
             if (value == field) {
                 return
             }
+            // A pending fade-out (started when a top bar button lost focus) would override the labels' alpha set by the expanded state
+            if (value == MediaBrowserState.SCROLLED_DOWN_FAB_EXPANDED) descriptionViews.forEach { it.animate().cancel() }
             TransitionManager.beginDelayedTransition(cl, transition)
             when (value) {
                 MediaBrowserState.SCROLLED_UP -> scrolledUpConstraintSet
@@ -119,7 +123,8 @@ internal class MediaBrowserAnimatorDelegate(val binding: SongBrowserBinding, pri
         if (BuildConfig.DEBUG) Log.d(this::class.java.simpleName, "Focusing: $hasFocus $view")
 
         view?.animate()?.cancel()
-        view?.animate()?.alpha(if (hasFocus) 1f else 0f)
+        // Labels stay visible while the FAB is expanded
+        if (hasFocus || currenstate != MediaBrowserState.SCROLLED_DOWN_FAB_EXPANDED) view?.animate()?.alpha(if (hasFocus) 1f else 0f)
 
         // FAB has to be expanded / collapsed when its focus changes
         if (currenstate != MediaBrowserState.SCROLLED_UP) {
