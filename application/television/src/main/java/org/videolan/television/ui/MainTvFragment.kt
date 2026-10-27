@@ -346,7 +346,7 @@ class MainTvFragment : BrowseSupportFragment(), OnItemViewSelectedListener, OnIt
     }
 
     private fun resetLines() {
-        val adapters = listOf(nowPlayingRow, recentlyPlayedRow, recentlyAdddedRow, videoRow, audioRow, playlistRow, historyRow, favoritesRow, browsersRow, miscRow).filter {
+        val adapters = listOf(favoritesRow, nowPlayingRow, recentlyPlayedRow, recentlyAdddedRow, videoRow, audioRow, playlistRow, historyRow, browsersRow, miscRow).filter {
             when {
                 !displayRecentlyPlayed && it == recentlyPlayedRow -> false
                 !displayRecentlyAdded && it == recentlyAdddedRow -> false

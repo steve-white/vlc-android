@@ -128,6 +128,11 @@ class MediaBrowserTvFragment : BaseBrowserTvFragment<MediaLibraryItem>() {
 
     override fun isSearchByExpressionActive() = !(viewModel as MediaBrowserViewModel).filterQuery.isNullOrBlank()
 
+    override fun clearSearchByExpression() {
+        (viewModel as MediaBrowserViewModel).restore()
+        updateSearchExpressionUi()
+    }
+
     override fun onSearchExpressionSelected(): Boolean {
         ExpressionSearchDialog.newInstance((viewModel as MediaBrowserViewModel).filterQuery)
             .show(requireActivity().supportFragmentManager, ExpressionSearchDialog::class.simpleName)
@@ -151,9 +156,10 @@ class MediaBrowserTvFragment : BaseBrowserTvFragment<MediaLibraryItem>() {
         listOf(binding.expressionButton, binding.imageButtonExpression).forEach { button ->
             button.isActivated = isExpressionFilterActive
             button.contentDescription = label
-            ImageViewCompat.setImageTintList(button, tint)
-            button.setBackgroundResource(if (isExpressionFilterActive) R.drawable.rounded_corners else android.R.color.transparent)
         }
+        // Only the header icon is a bare glyph; the FAB drawable includes its own orange disc, tinting it hides the glyph
+        ImageViewCompat.setImageTintList(binding.expressionButton, tint)
+        updateExpressionButtonBackgrounds(isExpressionFilterActive)
         binding.expressionDescription.text = label
         binding.title.text = query?.let { getString(R.string.search_expression_breadcrumb, it) } ?: getTitle()
     }
