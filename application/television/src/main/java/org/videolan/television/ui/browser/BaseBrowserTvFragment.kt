@@ -26,6 +26,7 @@ package org.videolan.television.ui.browser
 import android.annotation.TargetApi
 import android.app.Activity
 import android.content.res.Configuration
+import android.graphics.drawable.Drawable
 import android.graphics.Rect
 import android.os.Build
 import android.os.Bundle
@@ -80,6 +81,23 @@ abstract class BaseBrowserTvFragment<T> : Fragment(), BrowserFragmentInterface, 
     protected open fun canSearchByExpression() = false
     protected open fun onSearchExpressionSelected(): Boolean = false
     protected open fun isSearchByExpressionActive() = false
+    protected open fun clearSearchByExpression() {}
+
+    private var fabExpressionDefaultBackground: Drawable.ConstantState? = null
+
+    /**
+     * Header button is transparent when inactive, the FAB one keeps the same background as its siblings.
+     * Both use the rounded highlight when a search expression is active.
+     */
+    protected fun updateExpressionButtonBackgrounds(active: Boolean) {
+        if (active) {
+            binding.expressionButton.setBackgroundResource(R.drawable.rounded_corners)
+            binding.imageButtonExpression.setBackgroundResource(R.drawable.rounded_corners)
+        } else {
+            binding.expressionButton.setBackgroundResource(android.R.color.transparent)
+            binding.imageButtonExpression.background = fabExpressionDefaultBackground?.newDrawable(resources)
+        }
+    }
 
     private var recyclerSectionItemGridDecoration: RecyclerSectionItemGridDecoration? = null
     lateinit var binding: SongBrowserBinding
@@ -109,6 +127,7 @@ abstract class BaseBrowserTvFragment<T> : Fragment(), BrowserFragmentInterface, 
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        fabExpressionDefaultBackground = binding.imageButtonExpression.background?.constantState
 
         //overscan
         val hp = TvUtil.getOverscanHorizontal(requireContext())
@@ -425,6 +444,9 @@ abstract class BaseBrowserTvFragment<T> : Fragment(), BrowserFragmentInterface, 
         KEYCODE_BACK -> {
             if (binding.headerListContainer.visibility == View.VISIBLE) {
                 hideHeaderSelectionScreen()
+                true
+            } else if (isSearchByExpressionActive()) {
+                clearSearchByExpression()
                 true
             } else false
         }
